@@ -55,9 +55,14 @@ INTConfigureSystem(INT_SYSTEM_CONFIG_MULT_VECTOR);
 UART2PrintString("\r\nFirmware XC32 sst25vf\r\n");
 SST25Init();
 INTEnableInterrupts();
-
-LED_RA3=0;
+CFG_TRISA0();
+CFG_TRISA1();
+CFG_TRISA2();
+CFG_TRISA3();
 LED_RA0=0;
+LED_RA1=0;
+LED_RA2=0;
+LED_RA3=0;
 sizeLogo=SIZE_LOGO;
 flagWrite=0;
 DWORD iSearch=0x00000000;
@@ -74,23 +79,37 @@ while(BUTTON_STAT==PUSH)flagWrite=1;
     }
 #endif
 
-while(1)LED_RA3=0;
-     
+while(1)LED_RA3=0;    
 }
 
 
 
 void read_sector_sst(void){
 //sizeLogo=SIZE_LOGO;
-static DWORD address=0x0000;
+static DWORD address=0x00000000;
 static BYTE byteTmp;
 static int byteReads;
 static char strSST[32];
-    for(byteReads=0;byteReads<64;)
+static BYTE cheksum=0x00;
+static char strChks[64];
+    for(byteReads=0;byteReads<128;)
     {
-        byteTmp=SST25ReadByte(address);        
+
+        if(!(byteReads%16)){
+            sprintf(strChks,"\tcheksum:0x%X \t",cheksum);
+            UART2PrintString(strChks);
+            UART2PrintString("\r\n");
+            cheksum=0x00;
+        }
+        byteTmp=(SST25ReadByte(address))&0xFF;
+        cheksum=(cheksum +(BYTE)byteTmp)&0xFF;
+        
+        
         sprintf(strSST,"0x%X,",byteTmp);
-        UART2PrintString(strSST);
+        UART2PrintString(strSST); 
+        
+        
+        
         byteReads++;
         address++;
     }
@@ -98,19 +117,47 @@ static char strSST[32];
 }
 
 
+#define __UART2_FOUND__
 
 
-
-
-void __ISR(_UART2_VECTOR, IPL2AUTO) IntUart2Handler(void)
+#ifdef __UART2_FOUND__
+void __ISR(_UART2_VECTOR, IPL2AUTO)IntUart2Handler(void)
 {
 static DWORD address=0x00000000;
   if (INTGetFlag(INT_SOURCE_UART_RX(UART2)))
     {             
-        SST25WriteByte(UART2GetChar(),address);  
+        SST25WriteByte((unsigned char)UART2GetChar(),address);  
         //LED_RA3=~LED_RA3;
         address++;                   
     }
 INTClearFlag(INT_SOURCE_UART_RX(UART2)); 
   //if ( INTGetFlag(INT_SOURCE_UART_TX(UART2)) )INTClearFlag(INT_SOURCE_UART_TX(UART2));            
 }
+#else
+
+
+void __ISR(_UART2_VECTOR, IPL2AUTO)IntUart2Handler(void)
+{
+static DWORD address=0x00000000;
+static UINT16 counter=0;
+static char buffer_rx[18];
+static unsigned char checksum=0x00;
+
+    if (INTGetFlag(INT_SOURCE_UART_RX(UART2)))
+    {             
+        buffer_rx[counter]=UART2GetChar();
+        checksum=(checksum + buffer_rx[counter] )&0xFF;
+        SST25WriteByte((unsigned char)buffer_rx[counter],address);
+        if(counter>=17){
+            if(checksum==buffer_rx[17]){LED_RA1=~LED_RA1;}else{LED_RA1=0;}
+            checksum=0x00;
+            address--;counter=0;
+        }
+        //LED_RA3=~LED_RA3;
+        address++;                   
+    }
+INTClearFlag(INT_SOURCE_UART_RX(UART2)); 
+  //if ( INTGetFlag(INT_SOURCE_UART_TX(UART2)) )INTClearFlag(INT_SOURCE_UART_TX(UART2));            
+}
+
+#endif

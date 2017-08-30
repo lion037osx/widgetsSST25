@@ -12,10 +12,16 @@
 extern "C" {
 #endif
 
-#define LED_RA3 PORTAbits.RA3   
-#define CFG_TRISA3() {TRISAbits.TRISA3=0}
-#define LED_RA0 PORTAbits.RA0 
+
+#define CFG_TRISA0() {TRISAbits.TRISA0=0;}
+#define CFG_TRISA1() {TRISAbits.TRISA1=0;}    
+#define CFG_TRISA2() {TRISAbits.TRISA2=0;}
+#define CFG_TRISA3() {TRISAbits.TRISA3=0;}
     
+#define LED_RA0 PORTAbits.RA0 
+#define LED_RA1 PORTAbits.RA1 
+#define LED_RA2 PORTAbits.RA2       
+#define LED_RA3 PORTAbits.RA3    
 #define __UART2__
     
     

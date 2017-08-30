@@ -31,19 +31,26 @@ private slots:
 
     void on_pushButton_write_clicked();
 
-   //void on_progressBar_valueChanged(int value);
-
     void receivedData();
+
     void delay();
 
+    void delay1sec();
+
     void on_pushButton_clearScreen_clicked();
+
+    void on_pushButton_RTS_clicked();
+
+    void send16Bytes();
+
+    char checksum(char addValue);
 
 private:
     Ui::MainWindow *ui;
         QextSerialPort *port;
-        int m_cant_bytes_enviados;
+        int counterSendBytes;
         int counterDataReceived;
-        char * rx_data;
+        char * rxData;
         QString buffer;
         QFile file;
         bool  stat;

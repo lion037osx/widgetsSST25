@@ -26,11 +26,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow),port(NULL),counterDataReceived(0)
 {
     ui->setupUi(this);
-//on_progressBar_valueChanged(0);
     global_filename=qApp->applicationDirPath() + "/../widgetSst25/bmp/logoIcon480x272.bmp";
-
+   // global_filename=qApp->applicationDirPath() + "/../widgetSst25/bmp/logo480.bmp";
     qDebug()<<"filename:"<<global_filename;
-
     ui->progressBar->setValue(0);
 }
 
@@ -85,6 +83,7 @@ void MainWindow::on_pushButton_uart_clicked()
         {
              qDebug()<<"Open Port success!!!";
              connect(port, SIGNAL(readyRead()),this,SLOT (receivedData()));
+             port->setDtr(0);
         }
         else
         {
@@ -114,72 +113,100 @@ QTextStream stream_reader(&fs_bmp);
 QString temp_text;
 char buff_tmp[8];
 char bmpTmp[2];
-//static char readByteBMP[((480*272*2)-(138-6)+1)];
 static char checksum=0x00;
 static char onebyte[2];
 
-stream_reader.seek(0x1C);
-fs_bmp.read(onebyte,sizeof(unsigned char));
-buff_tmp[0]=0x00;
- port->write((char *)onebyte);
- checksum|=onebyte[0]&0xFF;
 
- stream_reader.seek(0x1C);
- fs_bmp.read(onebyte,sizeof(unsigned char));
- buff_tmp[1]=onebyte[0];
- port->write((char *)onebyte);
-checksum|=onebyte[0]&0xFF;
+stream_reader.seek(0x1D);
+fs_bmp.read(onebyte,sizeof( char));
+buff_tmp[0]=0x00;
+port->putChar(onebyte[0]);
+
+checksum = (checksum + onebyte[0])&0xFF;
+
+
+stream_reader.seek(0x1C);
+fs_bmp.read(onebyte,sizeof( char));
+buff_tmp[1]=onebyte[0];
+port->putChar(onebyte[0]);
+
+
+checksum = (checksum + onebyte[0])&0xFF;
+
 
 temp_text=QByteArray::number(buff_tmp[1]);
 qDebug()<<"size:"<<temp_text<<"bits";
 
-
-//read size width
 stream_reader.seek(0x16);
-fs_bmp.read(onebyte,sizeof(unsigned char));
+fs_bmp.read(onebyte,sizeof( char));
 buff_tmp[2]=onebyte[0];
-port->write((char *)onebyte);
-checksum|=onebyte[0]&0xFF;
+port->putChar(onebyte[0]);
+
+
+checksum = (checksum + onebyte[0])&0xFF;
+
 
 stream_reader.seek(0x17);
-fs_bmp.read(onebyte,sizeof(unsigned char));
+fs_bmp.read(onebyte,sizeof( char));
 buff_tmp[3]=onebyte[0];
-port->write((char *)onebyte);
-checksum|=onebyte[0]&0xFF;
+port->putChar(onebyte[0]);
+
+checksum = (checksum + onebyte[0])&0xFF;
 
 temp_text=QByteArray::number((unsigned short int)(((buff_tmp[3]<<8)&0xff00) | (buff_tmp[2]&0xff)));
 qDebug()<<"width:"<<temp_text<<" pixels";
 
-
 //read size height
 stream_reader.seek(0x12);
-fs_bmp.read(onebyte,sizeof(unsigned char));
+fs_bmp.read(onebyte,sizeof( char));
 buff_tmp[4]=onebyte[0];
-port->write((char *)onebyte);
-checksum|=onebyte[0]&0xFF;
+port->putChar(onebyte[0]);
+
+
+checksum = (checksum + onebyte[0])&0xFF;
+
 
 stream_reader.seek(0x13);
-fs_bmp.read(onebyte,sizeof(unsigned char));
-port->write((char *)onebyte);
+fs_bmp.read(onebyte,sizeof( char));
+port->putChar(onebyte[0]);
 buff_tmp[5]=onebyte[0];
-checksum|=onebyte[0]&0xFF;
+
+checksum = (checksum + onebyte[0])&0xFF;
+
 buff_tmp[6]=0x00;
+
 
 temp_text=QByteArray::number((unsigned short int)(((buff_tmp[5]<<8)&0xff00) | (buff_tmp[4]&0xff)));
 qDebug()<<"height:"<<temp_text<<" pixels";
-
 
 quint64 divCalcProgressBar=((480*272*2)-0x8A);
 quint64 addressBinary=0x8A;
 int progressBarPorcent=0;
 int progressBarTmp=0;
+static unsigned char statChkSum;
+statChkSum=0x00;
+quint64 counterchksum=0;
+quint64 address=6;
+quint16 counterNull=0;
 
     while(!stream_reader.atEnd())
     {
+
+
+        if(!(address%16)){
+             //port->putChar(checksum);
+             qDebug()<<"chksm:"<<(int)checksum<<"counter chk:"<<counterchksum<<"address"<<address;
+             checksum=0x00;
+             counterchksum++;
+         }
             stream_reader.seek(addressBinary);
             fs_bmp.read(bmpTmp,sizeof(unsigned char));
-            port->write((char *)bmpTmp);
+            port->putChar(bmpTmp[0]);
 
+           checksum = (checksum + bmpTmp[0])&0xFF;
+
+
+           address++;
             progressBarPorcent=(int)( (addressBinary*100) / divCalcProgressBar );
         if(progressBarTmp!=progressBarPorcent){
             ui->progressBar->setValue(progressBarPorcent);
@@ -187,7 +214,11 @@ int progressBarTmp=0;
         }
         addressBinary++;
     }
-    qDebug()<<"Max address:"<<(addressBinary-1-0x8A);
+    //if(!(addressBinary%16))port->write((char *)statChkSum);
+
+    //qDebug()<<"Counter of Nulls:"<<counterNull;
+    checksum=0x00;
+    //qDebug()<<"Max address:"<<(addressBinary-1-0x8A);
     fs_bmp.close();
 }
 
@@ -217,14 +248,31 @@ void MainWindow::receivedData(){
 void MainWindow::delay()
 {
     QTime dieTime= QTime::currentTime().addMSecs(1);
-    //QTime dieTime= QTime::currentTime().addSecs(1);
     while (QTime::currentTime() < dieTime)
     QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-    //QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
 }
 
+void MainWindow::delay1sec()
+{
+    QTime dieTime= QTime::currentTime().addSecs(1);
+    while (QTime::currentTime() < dieTime)
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+}
 
 void MainWindow::on_pushButton_clearScreen_clicked()
 {
     ui->plainTextEdit_uart->clear();
+}
+
+void MainWindow::on_pushButton_RTS_clicked()
+{
+    port->setDtr(1);
+    port->setDtr(0);
+}
+
+char MainWindow::checksum( char addValue)
+{
+    static char checksumTmp=0x00;
+    checksumTmp = (checksumTmp + addValue)&0xFF;
+    return ((char)checksumTmp&0xFF);
 }
